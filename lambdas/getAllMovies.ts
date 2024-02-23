@@ -1,60 +1,44 @@
 import { Handler } from "aws-lambda";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, ScanCommand } from "@aws-sdk/lib-dynamodb";
 
 const ddbDocClient = createDDbDocClient();
 
 export const handler: Handler = async (event, context) => {
   try {
     console.log("Event: ", event);
-    const parameters = event?.queryStringParameters;
-    const movieId = parameters ? parseInt(parameters.movieId) : undefined;
-
-    if (!movieId) {
-      return {
-        statusCode: 404,
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ Message: "Missing movie Id" }),
-      };
-    }
-    const commandOutput = await ddbDocClient.send(
-      new GetCommand({
+    
+    const scanResult = await ddbDocClient.send(
+      new ScanCommand({
         TableName: process.env.TABLE_NAME,
-        Key: { id: movieId },
       })
     );
-    console.log('GetCommand response: ', commandOutput)
-    if (!commandOutput.Item) {
+
+    if (!scanResult.Items || scanResult.Items.length === 0) {
       return {
         statusCode: 404,
         headers: {
           "content-type": "application/json",
         },
-        body: JSON.stringify({ Message: "Invalid movie Id" }),
+        body: JSON.stringify({ data: [] }),
       };
     }
-    const body = {
-      data: commandOutput.Item,
-    };
 
-    // Return Response
     return {
-      statusCode: 200,
+      statusCode: 404,
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ data: scanResult.Items }),
     };
   } catch (error: any) {
-    console.log(JSON.stringify(error));
+    console.error("Error: ", JSON.stringify(error));
     return {
       statusCode: 500,
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({ error }),
+      body: JSON.stringify({ error: error.message || error }),
     };
   }
 };
